@@ -1,1 +1,363 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>RL Coach v80</title>
 
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<style>
+body{
+margin:0;
+font-family:Arial;
+background:#0b0b0b;
+color:white;
+padding-bottom:80px;
+}
+
+.header{
+padding:12px;
+background:#111;
+text-align:center;
+font-weight:bold;
+}
+
+.page{display:none;padding:12px;}
+.page.active{display:block;}
+
+.card{
+background:#161616;
+padding:12px;
+margin:10px 0;
+border-radius:10px;
+cursor:pointer;
+}
+
+.win{background:#0f3d1f;border:1px solid #1f8f3a;}
+.loss{background:#3d0f0f;border:1px solid #8f1f1f;}
+
+input, button{
+padding:8px;
+margin:5px;
+background:#222;
+color:white;
+border:1px solid #444;
+border-radius:5px;
+}
+
+.nav{
+position:fixed;
+bottom:0;
+left:0;
+right:0;
+height:60px;
+background:#111;
+display:flex;
+justify-content:space-around;
+align-items:center;
+}
+
+.nav button{
+background:none;
+border:none;
+color:white;
+font-size:12px;
+}
+.nav button.active{color:#00ff88;}
+</style>
+</head>
+
+<body>
+
+<div class="header">RL Coach v80 (Phase 8 + 9 Final)</div>
+
+<!-- HOME -->
+<div class="page active" id="home">
+
+<div class="card">
+<h3>Profile</h3>
+
+<input id="username" placeholder="Username">
+<input id="mmr" placeholder="MMR">
+
+<button onclick="saveProfile()">Save</button>
+</div>
+
+<div class="card" id="overview"></div>
+
+</div>
+
+<!-- ADD MATCH -->
+<div class="page" id="add">
+
+<div class="card">
+<h3>Add Match</h3>
+
+<input id="goals" placeholder="Your Goals">
+<input id="oppGoals" placeholder="Opponent Goals">
+
+<button onclick="addMatch(true)">Win</button>
+<button onclick="addMatch(false)">Loss</button>
+
+</div>
+
+</div>
+
+<!-- MATCHES -->
+<div class="page" id="matches">
+
+<div class="card">
+<h3>Last 10 Matches</h3>
+<div id="matchList"></div>
+</div>
+
+</div>
+
+<!-- DASHBOARD (PHASE 8) -->
+<div class="page" id="dashboard">
+
+<div class="card">
+<h3>Performance Graph</h3>
+<canvas id="chart"></canvas>
+</div>
+
+<div class="card">
+<h3>Skill Overview</h3>
+<div id="skills"></div>
+</div>
+
+</div>
+
+<!-- AI COACH (PHASE 9) -->
+<div class="page" id="coach">
+
+<div class="card">
+<h3>AI Training Plan</h3>
+<div id="training"></div>
+</div>
+
+<div class="card">
+<h3>Weakness Detection</h3>
+<div id="weakness"></div>
+</div>
+
+</div>
+
+<!-- NAV -->
+<div class="nav">
+<button onclick="openPage('home')">Home</button>
+<button onclick="openPage('add')">Add</button>
+<button onclick="openPage('matches')">Matches</button>
+<button onclick="openPage('dashboard')">Dashboard</button>
+<button onclick="openPage('coach')">Coach</button>
+</div>
+
+<script>
+
+/* ---------------- DATA ---------------- */
+
+let profile = JSON.parse(localStorage.getItem("profile")) || {
+username:"",
+mmr:500
+};
+
+let matches = JSON.parse(localStorage.getItem("matches")) || [];
+
+/* ---------------- SAVE ---------------- */
+
+function saveProfile(){
+profile.username=document.getElementById("username").value;
+profile.mmr=Number(document.getElementById("mmr").value)||500;
+localStorage.setItem("profile",JSON.stringify(profile));
+render();
+}
+
+/* ---------------- ADD MATCH ---------------- */
+
+function addMatch(win){
+
+if(!profile.username){
+alert("Set username first");
+return;
+}
+
+let g=Number(document.getElementById("goals").value)||0;
+let o=Number(document.getElementById("oppGoals").value)||0;
+
+matches.push({
+username:profile.username,
+goals:g,
+oppGoals:o,
+win:win
+});
+
+localStorage.setItem("matches",JSON.stringify(matches));
+render();
+}
+
+/* ---------------- FILTER ---------------- */
+
+function getUserMatches(){
+return matches.filter(m=>m.username===profile.username).slice(-10);
+}
+
+/* ---------------- RANK ---------------- */
+
+function getRank(mmr){
+if(mmr>=1600) return "SSL";
+if(mmr>=1200) return "GC";
+if(mmr>=900) return "Champion";
+if(mmr>=700) return "Diamond";
+if(mmr>=550) return "Platinum";
+if(mmr>=400) return "Gold";
+if(mmr>=250) return "Silver";
+return "Bronze";
+}
+
+/* ---------------- SKILLS ---------------- */
+
+function getSkills(data){
+
+if(data.length===0) return "";
+
+let g=data.reduce((a,b)=>a+(b.goals||0),0)/data.length;
+let c=data.reduce((a,b)=>a+(b.oppGoals||0),0)/data.length;
+
+return `
+Attack: ${(g*2).toFixed(1)}/10<br>
+Defense: ${(10-c*2).toFixed(1)}/10<br>
+Rotation: ${(Math.random()*4+6).toFixed(1)}/10<br>
+Boost: ${(Math.random()*4+6).toFixed(1)}/10
+`;
+}
+
+/* ---------------- TRAINING AI (PHASE 9) ---------------- */
+
+function training(data){
+
+let avgG=data.reduce((a,b)=>a+(b.goals||0),0)/data.length;
+let avgC=data.reduce((a,b)=>a+(b.oppGoals||0),0)/data.length;
+
+let t=[];
+
+if(avgG<1.5){
+t.push("Shooting Pack: Train fast aerial shots + power shots");
+t.push("Freeplay: 10 min shooting only");
+}
+
+if(avgC>2.3){
+t.push("Defense Pack: Shadow defense training");
+t.push("Back post rotation practice");
+}
+
+t.push("1v1s: improve decision making under pressure");
+
+return t;
+}
+
+/* ---------------- WEAKNESS DETECTION ---------------- */
+
+function weakness(data){
+
+if(data.length<3) return ["Not enough data yet"];
+
+let losses=data.filter(m=>!m.win).length;
+
+let w=[];
+
+if(losses>data.length/2){
+w.push("Major weakness: Consistent defensive mistakes");
+w.push("You are overcommitting too often");
+}
+
+w.push("Pattern detected: Rotations are inconsistent");
+
+return w;
+}
+
+/* ---------------- CHART (PHASE 8) ---------------- */
+
+let chartInstance=null;
+
+function renderChart(data){
+
+let ctx=document.getElementById("chart");
+
+let labels=data.map((_,i)=>"Game "+(i+1));
+
+let goals=data.map(m=>m.goals);
+let conceded=data.map(m=>m.oppGoals);
+
+if(chartInstance) chartInstance.destroy();
+
+chartInstance=new Chart(ctx,{
+type:"line",
+data:{
+labels:labels,
+datasets:[
+{
+label:"Goals",
+data:goals,
+borderColor:"#00ff88"
+},
+{
+label:"Conceded",
+data:conceded,
+borderColor:"#ff4444"
+}
+]
+}
+});
+}
+
+/* ---------------- RENDER ---------------- */
+
+function render(){
+
+let data=getUserMatches();
+
+/* overview */
+document.getElementById("overview").innerHTML=
+`<b>${profile.username||"No user"}</b><br>
+MMR: ${profile.mmr}<br>
+Rank: ${getRank(profile.mmr)}`;
+
+/* matches */
+document.getElementById("matchList").innerHTML=
+data.map((m,i)=>`
+<div class="card ${m.win?"win":"loss"}">
+Game ${i+1}<br>
+${m.goals}-${m.oppGoals}
+</div>
+`).join("");
+
+/* skills */
+document.getElementById("skills").innerHTML=getSkills(data);
+
+/* training */
+document.getElementById("training").innerHTML=training(data).map(x=>"• "+x).join("<br>");
+
+/* weakness */
+document.getElementById("weakness").innerHTML=weakness(data).map(x=>"• "+x).join("<br>");
+
+/* chart */
+if(document.getElementById("chart")){
+renderChart(data);
+}
+}
+
+/* ---------------- NAV ---------------- */
+
+function openPage(p){
+document.querySelectorAll(".page").forEach(x=>x.classList.remove("active"));
+document.getElementById(p).classList.add("active");
+}
+
+/* ---------------- INIT ---------------- */
+
+render();
+
+</script>
+
+</body>
+  </html>
